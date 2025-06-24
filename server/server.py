@@ -10,6 +10,7 @@ CORS(app)  # Enable CORS for all routes
 # Increase maximum allowed payload to 16MB
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB
 
+# Load model when the server starts
 print("=== Starting Server ===")
 print(f"Current working directory: {os.getcwd()}")
 print(f"Directory contents: {os.listdir('.')}")
@@ -23,7 +24,6 @@ except Exception as e:
     print(traceback.format_exc())
 
 
-=======
 @app.route('/classify_image', methods=['GET', 'POST'])
 def classify_image():
     try:
@@ -69,9 +69,6 @@ def health_check():
     })
     response.headers.add('Access-Control-Allow-Origin', '*')
     return response
-    response = jsonify({'status': 'healthy'})
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    return response, 200
 
 @app.route('/', methods=['GET'])
 def home():
@@ -81,5 +78,3 @@ def home():
 if __name__ == "__main__":
     print("Starting Python Flask Server For Celebrity Image Classification")
     app.run(port=5000, debug=False)  # Set debug=False for production
-    util.load_saved_artifacts()
-    app.run(port=5000, debug=True)
