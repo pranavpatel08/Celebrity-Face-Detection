@@ -1,22 +1,36 @@
 import numpy as np
 import pywt
-import cv2
 import logging
 
 logger = logging.getLogger(__name__)
 
+# Try to import cv2, fallback to PIL
+try:
+    import cv2
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
+    from PIL import Image
+    
+    # Mock cv2 color conversion
+    class cv2:
+        COLOR_RGB2GRAY = 7
+        
+        @staticmethod
+        def cvtColor(img, code):
+            """Convert image to grayscale using numpy"""
+            if len(img.shape) == 3:
+                # RGB to grayscale conversion
+                return np.dot(img[...,:3], [0.299, 0.587, 0.114]).astype(np.uint8)
+            return img
+
 def w2d(img, mode='haar', level=1):
     """
     Apply 2D Discrete Wavelet Transform to an image.
-    
-    This function processes an image by:
-    1. Converting to grayscale
-    2. Applying wavelet decomposition
-    3. Zeroing out the approximation coefficients
-    4. Reconstructing the image
+    Works with both OpenCV and PIL/numpy arrays.
     
     Args:
-        img: Input image (BGR format)
+        img: Input image (BGR/RGB format as numpy array)
         mode: Wavelet type (default: 'haar')
         level: Decomposition level (default: 1)
     
@@ -27,12 +41,19 @@ def w2d(img, mode='haar', level=1):
         if img is None:
             raise ValueError("Input image is None")
         
+        # Ensure we have a numpy array
+        if not isinstance(img, np.ndarray):
+            img = np.array(img)
+        
         # Validate input image
-        if len(img.shape) != 3:
-            raise ValueError(f"Expected 3D image array, got shape: {img.shape}")
+        if len(img.shape) < 2:
+            raise ValueError(f"Invalid image shape: {img.shape}")
         
         # Convert to grayscale
-        gray_img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        if len(img.shape) == 3:
+            gray_img = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+        else:
+            gray_img = img
         
         # Convert to float32 and normalize
         float_img = np.float32(gray_img) / 255.0
@@ -46,6 +67,10 @@ def w2d(img, mode='haar', level=1):
         
         # Reconstruct image
         reconstructed = pywt.waverec2(coeffs_processed, mode)
+        
+        # Handle potential size mismatch after reconstruction
+        if reconstructed.shape != gray_img.shape:
+            reconstructed = reconstructed[:gray_img.shape[0], :gray_img.shape[1]]
         
         # Convert back to uint8
         reconstructed = np.clip(reconstructed * 255, 0, 255)
@@ -104,6 +129,7 @@ WAVELET_FAMILIES = {
 if __name__ == "__main__":
     # Test wavelet transform
     print("Testing wavelet module...")
+    print(f"OpenCV available: {CV2_AVAILABLE}")
     print(f"Available wavelet families: {list(WAVELET_FAMILIES.keys())}")
     
     # Create a test image

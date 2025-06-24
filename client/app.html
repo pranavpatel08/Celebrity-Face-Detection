@@ -10,20 +10,43 @@
     <link rel="icon" type="image/png" href="https://img.icons8.com/?size=100&id=OpOqI0ilXjXj&format=png&color=000000">
 </head>
 <body>
-    <div class="container">
+    <!-- Wake-up Banner -->
+    <div class="wake-up-banner" id="wakeUpBanner">
+        <i class="fas fa-spinner"></i>
+        <span id="bannerText">Waking up the server... This may take 30-40 seconds on first visit.</span>
+        <button class="skip-button" id="skipWaitBtn">Skip waiting</button>
+    </div>
+
+    <div class="container" id="mainContainer">
+        <!-- Server Status Indicator -->
+        <div class="server-status">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Checking server...</span>
+        </div>
+
         <header class="header">
-            <h1>Celebrity Face Recognition</h1>
+            <h1><i class="fas fa-magic"></i> Celebrity Face Recognition</h1>
             <p>Upload an image and AI will identify the celebrities</p>
         </header>
 
         <div class="main-content">
+            <!-- Info Box -->
+            <div class="info-box">
+                <i class="fas fa-info-circle"></i>
+                <p>
+                    <strong>Free Demo Notice:</strong> This app runs on a free server that goes to sleep when not in use. 
+                    The first request after inactivity may take 30-40 seconds while the server wakes up. 
+                    Subsequent requests will be fast!
+                </p>
+            </div>
+
             <!-- Upload Section -->
             <div class="upload-section">
                 <div class="upload-area" id="uploadArea">
                     <i class="fas fa-cloud-upload-alt upload-icon"></i>
                     <div class="upload-text">
                         <h3>Drag & Drop your image here</h3>
-                        <p>or click to browse</p>
+                        <p>or click to browse (JPG, PNG, WEBP)</p>
                     </div>
                     <input type="file" id="fileInput" accept="image/*">
                 </div>
@@ -58,7 +81,7 @@
                 <!-- Results Section -->
                 <div class="results-section" id="resultsSection">
                     <div class="results-header">
-                        <h2 id="resultsTitle">Results</h2>
+                        <h2 id="resultsTitle">Recognition Results</h2>
                         <p id="resultsSubtitle"></p>
                     </div>
                     <div class="face-results" id="faceResults"></div>
@@ -72,7 +95,26 @@
                     <p>Our AI can recognize these celebrities</p>
                 </div>
                 <div class="celebrity-grid" id="celebrityGrid">
-                    <!-- Will be populated dynamically -->
+                    <div class="celebrity-card">
+                        <img src="./images/keanu.jpg" alt="Keanu Reeves" class="celebrity-image">
+                        <div class="celebrity-name">Keanu Reeves</div>
+                    </div>
+                    <div class="celebrity-card">
+                        <img src="./images/margot.jpg" alt="Margot Robbie" class="celebrity-image">
+                        <div class="celebrity-name">Margot Robbie</div>
+                    </div>
+                    <div class="celebrity-card">
+                        <img src="./images/scarlett.jpg" alt="Scarlett Johansson" class="celebrity-image">
+                        <div class="celebrity-name">Scarlett Johansson</div>
+                    </div>
+                    <div class="celebrity-card">
+                        <img src="./images/will.jpg" alt="Will Smith" class="celebrity-image">
+                        <div class="celebrity-name">Will Smith</div>
+                    </div>
+                    <div class="celebrity-card">
+                        <img src="./images/zendaya.jpg" alt="Zendaya" class="celebrity-image">
+                        <div class="celebrity-name">Zendaya</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -80,18 +122,23 @@
 
     <script>
         // Configuration
-        const API_URL = 'http://127.0.0.1:5000';
+        // IMPORTANT: Update this URL with your actual Render backend URL
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+            ? 'http://127.0.0.1:5000'  // Local development
+            : 'https://your-app-name.onrender.com'; // Production - REPLACE WITH YOUR ACTUAL RENDER URL
         
-        // Celebrity data - Update this based on your actual model classes
-        const CELEBRITIES = [
-            { name: 'Keanu Reeves', image: './images/keanu.jpg', id: 'keanu_reeves' },
-            { name: 'Margot Robbie', image: './images/margot.jpg', id: 'margot_robbie' },
-            { name: 'Scarlett Johansson', image: './images/scarlett.jpg', id: 'scarlett_johansson' },
-            { name: 'Zendaya', image: './images/zendaya.jpg', id: 'zendaya' },
-            { name: 'Will Smith', image: './images/will.jpg', id: 'will_smith' }
-        ];
+        console.log('Using API URL:', API_URL);
+        
+        // Celebrity display names
+        const celebrityNames = {
+            'keanu_reeves': 'Keanu Reeves',
+            'margot_robbie': 'Margot Robbie',
+            'scarlett_johansson': 'Scarlett Johansson',
+            'will_smith': 'Will Smith',
+            'zendaya': 'Zendaya'
+        };
 
-        // DOM Elements
+        // DOM elements
         const uploadArea = document.getElementById('uploadArea');
         const fileInput = document.getElementById('fileInput');
         const previewSection = document.getElementById('previewSection');
@@ -105,17 +152,119 @@
         const resultsTitle = document.getElementById('resultsTitle');
         const resultsSubtitle = document.getElementById('resultsSubtitle');
         const faceResults = document.getElementById('faceResults');
-        const celebrityGrid = document.getElementById('celebrityGrid');
+        const wakeUpBanner = document.getElementById('wakeUpBanner');
+        const bannerText = document.getElementById('bannerText');
+        const mainContainer = document.getElementById('mainContainer');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const skipWaitBtn = document.getElementById('skipWaitBtn');
 
         let currentImageData = null;
+        let serverAwake = false;
+        let isFirstCheck = true;
 
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            populateCelebrityGallery();
-            setupEventListeners();
-            // Fetch actual classes from server
-            fetchCelebrityClasses();
+        // Skip waiting button
+        skipWaitBtn.addEventListener('click', () => {
+            console.log('Skipping server wait');
+            serverAwake = true;
+            statusDot.classList.add('online');
+            statusText.textContent = 'Server assumed online';
+            wakeUpBanner.style.display = 'none';
+            mainContainer.classList.remove('banner-active');
+            isFirstCheck = false;
         });
+
+        // Check server status
+        async function checkServerStatus() {
+            console.log('Checking server status...');
+            
+            if (isFirstCheck) {
+                wakeUpBanner.style.display = 'block';
+                mainContainer.classList.add('banner-active');
+            }
+
+            try {
+                const startTime = Date.now();
+                const response = await fetch(`${API_URL}/health`, {
+                    method: 'GET',
+                    mode: 'cors',
+                    headers: {
+                        'Accept': 'application/json',
+                    }
+                });
+
+                console.log('Health check response:', response.status);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Server health data:', data);
+                    
+                    serverAwake = true;
+                    statusDot.classList.add('online');
+                    statusText.textContent = 'Server online';
+                    
+                    if (isFirstCheck) {
+                        const elapsed = Date.now() - startTime;
+                        bannerText.textContent = `Server is ready! (took ${(elapsed/1000).toFixed(1)}s)`;
+                        wakeUpBanner.classList.add('success');
+                        
+                        setTimeout(() => {
+                            wakeUpBanner.style.display = 'none';
+                            mainContainer.classList.remove('banner-active');
+                        }, 3000);
+                    }
+                    isFirstCheck = false;
+                    return true;
+                }
+            } catch (error) {
+                console.error('Server health check failed:', error);
+                statusText.textContent = 'Connecting to server...';
+                statusDot.classList.remove('online');
+                
+                // For first check, try a test classification instead
+                if (isFirstCheck) {
+                    try {
+                        // Try to wake up the server with a simple request
+                        const wakeResponse = await fetch(`${API_URL}/classify_image`, {
+                            method: 'POST',
+                            mode: 'cors',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                            },
+                            body: new URLSearchParams({
+                                'image_data': 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+                            })
+                        });
+                        
+                        if (wakeResponse.ok || wakeResponse.status === 400) {
+                            // Server responded (even with error), so it's awake
+                            console.log('Server responded to wake-up request');
+                            serverAwake = true;
+                            statusDot.classList.add('online');
+                            statusText.textContent = 'Server online';
+                            
+                            const elapsed = Date.now() - startTime;
+                            bannerText.textContent = `Server is ready! (took ${(elapsed/1000).toFixed(1)}s)`;
+                            wakeUpBanner.classList.add('success');
+                            
+                            setTimeout(() => {
+                                wakeUpBanner.style.display = 'none';
+                                mainContainer.classList.remove('banner-active');
+                            }, 3000);
+                            
+                            isFirstCheck = false;
+                            return true;
+                        }
+                    } catch (wakeError) {
+                        console.log('Wake-up request failed:', wakeError);
+                    }
+                }
+                
+                // Retry after 5 seconds
+                setTimeout(checkServerStatus, 5000);
+            }
+            return false;
+        }
 
         // Setup Event Listeners
         function setupEventListeners() {
@@ -143,20 +292,20 @@
         // Drag and Drop Handlers
         function handleDragOver(e) {
             e.preventDefault();
-            uploadArea.classList.add('dragover');
+            uploadArea.classList.add('drag-over');
         }
 
         function handleDragLeave(e) {
             e.preventDefault();
-            uploadArea.classList.remove('dragover');
+            uploadArea.classList.remove('drag-over');
         }
 
         function handleDrop(e) {
             e.preventDefault();
-            uploadArea.classList.remove('dragover');
+            uploadArea.classList.remove('drag-over');
             
             const files = e.dataTransfer.files;
-            if (files.length > 0) {
+            if (files.length > 0 && files[0].type.startsWith('image/')) {
                 handleFile(files[0]);
             }
         }
@@ -176,7 +325,7 @@
             }
 
             // Check file size (10MB limit)
-            const maxSize = 10 * 1024 * 1024; // 10MB
+            const maxSize = 10 * 1024 * 1024;
             if (file.size > maxSize) {
                 showError('Image file is too large. Please upload an image smaller than 10MB.');
                 return;
@@ -184,8 +333,42 @@
 
             const reader = new FileReader();
             reader.onload = (e) => {
-                currentImageData = e.target.result;
-                showPreview(currentImageData);
+                const img = new Image();
+                img.onload = function() {
+                    // Resize image if needed
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    
+                    // Max dimensions
+                    const maxWidth = 1024;
+                    const maxHeight = 1024;
+                    
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    // Calculate new dimensions
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height *= maxWidth / width;
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxHeight) {
+                            width *= maxHeight / height;
+                            height = maxHeight;
+                        }
+                    }
+                    
+                    // Resize the image
+                    canvas.width = width;
+                    canvas.height = height;
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Get resized image data
+                    currentImageData = canvas.toDataURL('image/jpeg', 0.85);
+                    showPreview(currentImageData);
+                };
+                img.src = e.target.result;
             };
             reader.readAsDataURL(file);
         }
@@ -215,6 +398,7 @@
         function showLoading() {
             loading.style.display = 'block';
             classifyBtn.disabled = true;
+            hideError();
         }
 
         function hideLoading() {
@@ -231,56 +415,7 @@
             errorMessage.style.display = 'none';
         }
 
-        // API Functions
-        async function fetchCelebrityClasses() {
-            try {
-                const response = await fetch(`${API_URL}/classes`);
-                const data = await response.json();
-                if (data.success && data.classes) {
-                    console.log('Available celebrity classes:', data.classes);
-                    // Update CELEBRITIES array if needed
-                }
-            } catch (error) {
-                console.error('Failed to fetch celebrity classes:', error);
-            }
-        }
-
-        // Image compression function
-        function compressImage(dataURL, maxWidth, maxHeight, quality) {
-            return new Promise((resolve) => {
-                const img = new Image();
-                img.onload = function() {
-                    let width = img.width;
-                    let height = img.height;
-
-                    // Calculate new dimensions
-                    if (width > height) {
-                        if (width > maxWidth) {
-                            height *= maxWidth / width;
-                            width = maxWidth;
-                        }
-                    } else {
-                        if (height > maxHeight) {
-                            width *= maxHeight / height;
-                            height = maxHeight;
-                        }
-                    }
-
-                    // Create canvas and draw resized image
-                    const canvas = document.createElement('canvas');
-                    canvas.width = width;
-                    canvas.height = height;
-                    
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-                    
-                    // Return compressed image
-                    resolve(canvas.toDataURL('image/jpeg', quality));
-                };
-                img.src = dataURL;
-            });
-        }
-
+        // Classify Image
         async function classifyImage() {
             if (!currentImageData) {
                 showError('Please upload an image first');
@@ -288,37 +423,64 @@
             }
 
             showLoading();
-            hideError();
 
             try {
-                // Compress image before sending (max 1000px, 0.8 quality)
-                const compressedImage = await compressImage(currentImageData, 1000, 1000, 0.8);
-                
-                // Send as JSON with proper headers
+                const formData = new FormData();
+                formData.append('image_data', currentImageData);
+
                 const response = await fetch(`${API_URL}/classify_image`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    },
-                    body: new URLSearchParams({
-                        'image_data': compressedImage
-                    })
+                    mode: 'cors',
+                    body: formData
                 });
 
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                console.log('Classification response:', response.status);
+
+                // If we get a response, server is definitely awake
+                if (response.ok || response.status === 400 || response.status === 413) {
+                    if (!serverAwake) {
+                        serverAwake = true;
+                        statusDot.classList.add('online');
+                        statusText.textContent = 'Server online';
+                        
+                        // Hide wake-up banner if still showing
+                        if (wakeUpBanner.style.display !== 'none') {
+                            wakeUpBanner.style.display = 'none';
+                            mainContainer.classList.remove('banner-active');
+                        }
+                    }
+                }
+
+                if (!response.ok && response.status === 413) {
+                    throw new Error('Image is too large. Please try a smaller image.');
                 }
 
                 const data = await response.json();
+                console.log('Classification data:', data);
 
-                if (data.success) {
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                if (data.success && data.results && data.results.length > 0) {
                     displayResults(data);
+                } else if (data.success && data.results && data.results.length === 0) {
+                    throw new Error('No faces detected in the image. Please try an image with clear facial features.');
                 } else {
-                    showError(data.message || 'Failed to classify image');
+                    throw new Error('No faces detected in the image');
                 }
             } catch (error) {
                 console.error('Classification error:', error);
-                showError('Failed to process image. Please try a smaller image.');
+                
+                if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+                    showError('Cannot connect to server. The server might be starting up. Please wait 30 seconds and try again.');
+                    // Start checking server status
+                    if (!serverAwake) {
+                        checkServerStatus();
+                    }
+                } else {
+                    showError(error.message || 'Failed to classify image. Please try again.');
+                }
             } finally {
                 hideLoading();
             }
@@ -364,12 +526,14 @@
             const card = document.createElement('div');
             card.className = 'face-card';
             
-            // Get celebrity info
-            const celebrityInfo = CELEBRITIES.find(c => 
-                c.id === result.predicted_class || 
-                c.name.toLowerCase().replace(/\s+/g, '_') === result.predicted_class
-            );
-
+            const displayName = celebrityNames[result.predicted_class] || 
+                result.predicted_class.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            
+            // Get the top prediction confidence
+            const confidence = result.top_predictions ? 
+                result.top_predictions[0].probability : 
+                Math.max(...(result.all_probabilities || []));
+            
             card.innerHTML = `
                 <div class="face-header">
                     <div class="face-index">${faceNumber}</div>
@@ -377,22 +541,20 @@
                 </div>
                 
                 <div class="prediction-main">
-                    <div class="prediction-name">
-                        ${celebrityInfo ? celebrityInfo.name : result.predicted_class.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </div>
+                    <div class="prediction-name">${displayName}</div>
                     <div class="confidence-bar">
-                        <div class="confidence-fill" style="width: ${result.confidence}%"></div>
+                        <div class="confidence-fill" data-confidence="${confidence}"></div>
                     </div>
-                    <div class="confidence-text">${result.confidence}% Confidence</div>
+                    <div class="confidence-text">${confidence}% Confidence</div>
                 </div>
 
-                ${result.top_3 && result.top_3.length > 1 ? `
+                ${result.top_predictions && result.top_predictions.length > 1 ? `
                     <div class="other-predictions">
-                        <h4>Other Possibilities:</h4>
-                        ${result.top_3.slice(1).map(pred => `
+                        <h4>Other Possibilities</h4>
+                        ${result.top_predictions.slice(1).map(pred => `
                             <div class="prediction-item">
-                                <span>${formatName(pred.name)}</span>
-                                <span>${pred.probability}%</span>
+                                <span>${celebrityNames[pred.name] || pred.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</span>
+                                <span class="prediction-score">${pred.probability}%</span>
                             </div>
                         `).join('')}
                     </div>
@@ -402,34 +564,32 @@
             // Animate confidence bar after a short delay
             setTimeout(() => {
                 const bar = card.querySelector('.confidence-fill');
-                if (bar) bar.style.width = result.confidence + '%';
+                if (bar) {
+                    bar.style.width = bar.dataset.confidence + '%';
+                }
             }, 100);
 
             return card;
         }
 
-        function formatName(name) {
-            // Convert snake_case to Title Case
-            return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-        }
-
-        // Celebrity Gallery
-        function populateCelebrityGallery() {
-            celebrityGrid.innerHTML = CELEBRITIES.map(celebrity => `
-                <div class="celebrity-card" data-name="${celebrity.name}">
-                    <img src="${celebrity.image}" alt="${celebrity.name}" class="celebrity-image">
-                    <div class="celebrity-name">${celebrity.name}</div>
-                </div>
-            `).join('');
-
-            // Add click handlers to celebrity cards
-            document.querySelectorAll('.celebrity-card').forEach(card => {
-                card.addEventListener('click', () => {
-                    // Could implement sample image loading here
-                    console.log('Clicked:', card.dataset.name);
-                });
-            });
-        }
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            
+            // Check if we should skip the health check (for debugging)
+            const urlParams = new URLSearchParams(window.location.search);
+            const skipHealthCheck = urlParams.get('skipHealth') === 'true';
+            
+            if (!skipHealthCheck) {
+                checkServerStatus();
+            } else {
+                // Assume server is ready
+                serverAwake = true;
+                statusDot.classList.add('online');
+                statusText.textContent = 'Server online';
+                console.log('Skipping health check');
+            }
+        });
     </script>
 </body>
 </html>

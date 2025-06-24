@@ -1,7 +1,7 @@
 // Modern Celebrity Face Recognition App
 
 const APP = {
-    API_URL: 'http://127.0.0.1:5000',
+    API_URL: 'https://celeb-face-rec-backend.onrender.com',
     currentFile: null,
     celebrities: [], // Will be loaded from API
     
