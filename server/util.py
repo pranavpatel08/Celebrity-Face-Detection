@@ -62,9 +62,45 @@ def load_saved_artifacts():
         __class_number_to_name = {v:k for k,v in __class_name_to_number.items()}
 
     global __model
+<<<<<<< HEAD
+
+    import os
+    print(f"Current directory: {os.getcwd()}")
+    print(f"Files in current directory: {os.listdir('.')}")
+    
+    # Check if artifacts directory exists
+    if os.path.exists('./artifacts'):
+        print(f"Files in artifacts directory: {os.listdir('./artifacts')}")
+    else:
+        print("ERROR: artifacts directory not found!")
+        raise Exception("artifacts directory not found")
+
+    # Load class dictionary
+    class_dict_path = "./artifacts/class_dictionary.json"
+    if not os.path.exists(class_dict_path):
+        print(f"ERROR: {class_dict_path} not found!")
+        raise Exception(f"{class_dict_path} not found")
+        
+    with open(class_dict_path, "r") as f:
+        __class_name_to_number = json.load(f)
+        __class_number_to_name = {v:k for k,v in __class_name_to_number.items()}
+    print(f"Loaded classes: {list(__class_name_to_number.keys())}")
+
+    # Load model
+    model_path = './artifacts/saved_model.pkl'
+    if not os.path.exists(model_path):
+        print(f"ERROR: {model_path} not found!")
+        raise Exception(f"{model_path} not found")
+        
+    if __model is None:
+        with open(model_path, 'rb') as f:
+            __model = joblib.load(f)
+        print(f"Model loaded successfully. Type: {type(__model)}")
+=======
     if __model is None:
         with open('./artifacts/saved_model.pkl', 'rb') as f:
             __model = joblib.load(f)
+>>>>>>> 65d80a81b6cc7ca341778dce8b4e85174ff132e3
     print("loading saved artifacts...done")
 
 def get_cv2_image_from_base64_string(b64str):
@@ -77,8 +113,28 @@ def get_cv2_image_from_base64_string(b64str):
     return img
 
 def get_cropped_image_if_2_eyes(image_path, image_base64_data):
+<<<<<<< HEAD
+    import os
+    
+    # Check if cascade files exist
+    face_cascade_path = './opencv/haarcascades/haarcascade_frontalface_default.xml'
+    eye_cascade_path = './opencv/haarcascades/haarcascade_eye.xml'
+    
+    if not os.path.exists(face_cascade_path):
+        print(f"ERROR: Face cascade not found at {face_cascade_path}")
+        # Try alternative paths
+        alt_face_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+        alt_eye_path = cv2.data.haarcascades + 'haarcascade_eye.xml'
+        print(f"Trying alternative path: {alt_face_path}")
+        face_cascade = cv2.CascadeClassifier(alt_face_path)
+        eye_cascade = cv2.CascadeClassifier(alt_eye_path)
+    else:
+        face_cascade = cv2.CascadeClassifier(face_cascade_path)
+        eye_cascade = cv2.CascadeClassifier(eye_cascade_path)
+=======
     face_cascade = cv2.CascadeClassifier('./opencv/haarcascades/haarcascade_frontalface_default.xml')
     eye_cascade = cv2.CascadeClassifier('./opencv/haarcascades/haarcascade_eye.xml')
+>>>>>>> 65d80a81b6cc7ca341778dce8b4e85174ff132e3
 
     if image_path:
         img = cv2.imread(image_path)
