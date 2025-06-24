@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Celebrity Face Recognition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="app.css">
+    <link rel="icon" type="image/png" href="https://img.icons8.com/?size=100&id=OpOqI0ilXjXj&format=png&color=000000">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Celebrity Face Recognition</h1>
+            <p>Upload an image and AI will identify the celebrities</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Upload Section -->
+            <div class="upload-section">
+                <div class="upload-area" id="uploadArea">
+                    <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                    <div class="upload-text">
+                        <h3>Drag & Drop your image here</h3>
+                        <p>or click to browse</p>
+                    </div>
+                    <input type="file" id="fileInput" accept="image/*">
+                </div>
+
+                <!-- Preview Section -->
+                <div class="preview-section" id="previewSection">
+                    <div class="preview-container">
+                        <img id="previewImage" class="preview-image" alt="Preview">
+                        <button class="remove-image" id="removeImage" title="Remove image">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="button-group">
+                        <button class="btn btn-primary" id="classifyBtn">
+                            <i class="fas fa-magic"></i> Classify Faces
+                        </button>
+                        <button class="btn btn-secondary" id="resetBtn">
+                            <i class="fas fa-redo"></i> Try Another
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Loading -->
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Analyzing faces...</p>
+                </div>
+
+                <!-- Error Message -->
+                <div class="error-message" id="errorMessage"></div>
+
+                <!-- Results Section -->
+                <div class="results-section" id="resultsSection">
+                    <div class="results-header">
+                        <h2 id="resultsTitle">Results</h2>
+                        <p id="resultsSubtitle"></p>
+                    </div>
+                    <div class="face-results" id="faceResults"></div>
+                </div>
+            </div>
+
+            <!-- Celebrity Gallery -->
+            <div class="celebrity-gallery">
+                <div class="gallery-header">
+                    <h3>Supported Celebrities</h3>
+                    <p>Our AI can recognize these celebrities</p>
+                </div>
+                <div class="celebrity-grid" id="celebrityGrid">
+                    <!-- Will be populated dynamically -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const API_URL = 'http://127.0.0.1:5000';
+        
+        // Celebrity data - Update this based on your actual model classes
+        const CELEBRITIES = [
+            { name: 'Keanu Reeves', image: './images/keanu.jpg', id: 'keanu_reeves' },
+            { name: 'Margot Robbie', image: './images/margot.jpg', id: 'margot_robbie' },
+            { name: 'Scarlett Johansson', image: './images/scarlett.jpg', id: 'scarlett_johansson' },
+            { name: 'Zendaya', image: './images/zendaya.jpg', id: 'zendaya' },
+            { name: 'Will Smith', image: './images/will.jpg', id: 'will_smith' }
+        ];
+
+        // DOM Elements
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const previewSection = document.getElementById('previewSection');
+        const previewImage = document.getElementById('previewImage');
+        const removeImageBtn = document.getElementById('removeImage');
+        const classifyBtn = document.getElementById('classifyBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const loading = document.getElementById('loading');
+        const errorMessage = document.getElementById('errorMessage');
+        const resultsSection = document.getElementById('resultsSection');
+        const resultsTitle = document.getElementById('resultsTitle');
+        const resultsSubtitle = document.getElementById('resultsSubtitle');
+        const faceResults = document.getElementById('faceResults');
+        const celebrityGrid = document.getElementById('celebrityGrid');
+
+        let currentImageData = null;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            populateCelebrityGallery();
+            setupEventListeners();
+            // Fetch actual classes from server
+            fetchCelebrityClasses();
+        });
+
+        // Setup Event Listeners
+        function setupEventListeners() {
+            // Upload area click
+            uploadArea.addEventListener('click', () => fileInput.click());
+
+            // File input change
+            fileInput.addEventListener('change', handleFileSelect);
+
+            // Drag and drop
+            uploadArea.addEventListener('dragover', handleDragOver);
+            uploadArea.addEventListener('dragleave', handleDragLeave);
+            uploadArea.addEventListener('drop', handleDrop);
+
+            // Buttons
+            removeImageBtn.addEventListener('click', resetUpload);
+            classifyBtn.addEventListener('click', classifyImage);
+            resetBtn.addEventListener('click', resetAll);
+
+            // Prevent default drag behaviors
+            document.addEventListener('dragover', e => e.preventDefault());
+            document.addEventListener('drop', e => e.preventDefault());
+        }
+
+        // Drag and Drop Handlers
+        function handleDragOver(e) {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        }
+
+        function handleDragLeave(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFile(files[0]);
+            }
+        }
+
+        // File Handling
+        function handleFileSelect(e) {
+            const file = e.target.files[0];
+            if (file) {
+                handleFile(file);
+            }
+        }
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showError('Please upload an image file');
+                return;
+            }
+
+            // Check file size (10MB limit)
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            if (file.size > maxSize) {
+                showError('Image file is too large. Please upload an image smaller than 10MB.');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                currentImageData = e.target.result;
+                showPreview(currentImageData);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // UI Functions
+        function showPreview(imageSrc) {
+            previewImage.src = imageSrc;
+            uploadArea.style.display = 'none';
+            previewSection.style.display = 'block';
+            resultsSection.style.display = 'none';
+            hideError();
+        }
+
+        function resetUpload() {
+            uploadArea.style.display = 'block';
+            previewSection.style.display = 'none';
+            fileInput.value = '';
+            currentImageData = null;
+        }
+
+        function resetAll() {
+            resetUpload();
+            resultsSection.style.display = 'none';
+            hideError();
+        }
+
+        function showLoading() {
+            loading.style.display = 'block';
+            classifyBtn.disabled = true;
+        }
+
+        function hideLoading() {
+            loading.style.display = 'none';
+            classifyBtn.disabled = false;
+        }
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+
+        // API Functions
+        async function fetchCelebrityClasses() {
+            try {
+                const response = await fetch(`${API_URL}/classes`);
+                const data = await response.json();
+                if (data.success && data.classes) {
+                    console.log('Available celebrity classes:', data.classes);
+                    // Update CELEBRITIES array if needed
+                }
+            } catch (error) {
+                console.error('Failed to fetch celebrity classes:', error);
+            }
+        }
+
+        // Image compression function
+        function compressImage(dataURL, maxWidth, maxHeight, quality) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = function() {
+                    let width = img.width;
+                    let height = img.height;
+
+                    // Calculate new dimensions
+                    if (width > height) {
+                        if (width > maxWidth) {
+                            height *= maxWidth / width;
+                            width = maxWidth;
+                        }
+                    } else {
+                        if (height > maxHeight) {
+                            width *= maxHeight / height;
+                            height = maxHeight;
+                        }
+                    }
+
+                    // Create canvas and draw resized image
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Return compressed image
+                    resolve(canvas.toDataURL('image/jpeg', quality));
+                };
+                img.src = dataURL;
+            });
+        }
+
+        async function classifyImage() {
+            if (!currentImageData) {
+                showError('Please upload an image first');
+                return;
+            }
+
+            showLoading();
+            hideError();
+
+            try {
+                // Compress image before sending (max 1000px, 0.8 quality)
+                const compressedImage = await compressImage(currentImageData, 1000, 1000, 0.8);
+                
+                // Send as JSON with proper headers
+                const response = await fetch(`${API_URL}/classify_image`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        'image_data': compressedImage
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                if (data.success) {
+                    displayResults(data);
+                } else {
+                    showError(data.message || 'Failed to classify image');
+                }
+            } catch (error) {
+                console.error('Classification error:', error);
+                showError('Failed to process image. Please try a smaller image.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        // Display Results
+        function displayResults(data) {
+            resultsSection.style.display = 'block';
+            
+            // Update header
+            const faceCount = data.faces_detected;
+            resultsTitle.textContent = faceCount > 0 ? 'Recognition Results' : 'No Faces Detected';
+            resultsSubtitle.textContent = 
+                faceCount === 0 ? 'No faces with clear features were detected in the image' :
+                faceCount === 1 ? '1 face detected and analyzed' :
+                `${faceCount} faces detected and analyzed`;
+
+            // Clear previous results
+            faceResults.innerHTML = '';
+
+            if (faceCount === 0) {
+                faceResults.innerHTML = `
+                    <div class="face-card">
+                        <p style="text-align: center; color: #6b7280;">
+                            Try uploading a different image with clear facial features.
+                        </p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Display each face result
+            data.results.forEach((result, index) => {
+                const faceCard = createFaceCard(result, index + 1);
+                faceResults.appendChild(faceCard);
+            });
+
+            // Smooth scroll to results
+            resultsSection.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function createFaceCard(result, faceNumber) {
+            const card = document.createElement('div');
+            card.className = 'face-card';
+            
+            // Get celebrity info
+            const celebrityInfo = CELEBRITIES.find(c => 
+                c.id === result.predicted_class || 
+                c.name.toLowerCase().replace(/\s+/g, '_') === result.predicted_class
+            );
+
+            card.innerHTML = `
+                <div class="face-header">
+                    <div class="face-index">${faceNumber}</div>
+                    <h3>Face ${faceNumber}</h3>
+                </div>
+                
+                <div class="prediction-main">
+                    <div class="prediction-name">
+                        ${celebrityInfo ? celebrityInfo.name : result.predicted_class.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </div>
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" style="width: ${result.confidence}%"></div>
+                    </div>
+                    <div class="confidence-text">${result.confidence}% Confidence</div>
+                </div>
+
+                ${result.top_3 && result.top_3.length > 1 ? `
+                    <div class="other-predictions">
+                        <h4>Other Possibilities:</h4>
+                        ${result.top_3.slice(1).map(pred => `
+                            <div class="prediction-item">
+                                <span>${formatName(pred.name)}</span>
+                                <span>${pred.probability}%</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                ` : ''}
+            `;
+
+            // Animate confidence bar after a short delay
+            setTimeout(() => {
+                const bar = card.querySelector('.confidence-fill');
+                if (bar) bar.style.width = result.confidence + '%';
+            }, 100);
+
+            return card;
+        }
+
+        function formatName(name) {
+            // Convert snake_case to Title Case
+            return name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        // Celebrity Gallery
+        function populateCelebrityGallery() {
+            celebrityGrid.innerHTML = CELEBRITIES.map(celebrity => `
+                <div class="celebrity-card" data-name="${celebrity.name}">
+                    <img src="${celebrity.image}" alt="${celebrity.name}" class="celebrity-image">
+                    <div class="celebrity-name">${celebrity.name}</div>
+                </div>
+            `).join('');
+
+            // Add click handlers to celebrity cards
+            document.querySelectorAll('.celebrity-card').forEach(card => {
+                card.addEventListener('click', () => {
+                    // Could implement sample image loading here
+                    console.log('Clicked:', card.dataset.name);
+                });
+            });
+        }
+    </script>
+</body>
+</html>
