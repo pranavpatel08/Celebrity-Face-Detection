@@ -56,6 +56,25 @@ def classify_image():
         response = jsonify({'error': str(e)})
         response.headers.add('Access-Control-Allow-Origin', '*')
         return response, 500
+    
+@app.route('/test_classify_image', methods=['GET', 'POST'])
+def test_classify_image():
+    
+    results = util.test_classify_image()
+    
+    if not results:
+        response = jsonify({'error': 'Error while testing'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        return response, 400
+    
+    response = jsonify({
+        'success': True,
+        'results': results,
+        'faces_detected': len(results)
+    })
+    
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    return response
 
 @app.route('/health', methods=['GET'])
 def health_check():
